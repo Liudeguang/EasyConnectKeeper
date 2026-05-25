@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>KeepConnect.ico</ApplicationIcon>
+    <AssemblyName>EasyConnectKeeper</AssemblyName>
+    <RootNamespace>EasyConnectKeeper</RootNamespace>
+    <Title>EasyConnectKeeper 自动联通程序</Title>
+    <Company>Open Source</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="KeepConnect.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Flurl.Http" Version="3.2.4" />
+    <PackageReference Include="Nager.TcpClient" Version="1.1.1" />
+    <PackageReference Include="System.Net.Sockets" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>
