@@ -17,6 +17,7 @@ namespace EasyConnectKeeper
         {
             InitializeComponent();
             _logService = new LogService(AppendLog);
+            _vpnService.OnLog += msg => _logService.Info(msg);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -33,18 +34,21 @@ namespace EasyConnectKeeper
 
         private async Task CheckStatus()
         {
-            _vpnService.Host = textBoxHost.Text;
-            _vpnService.Port = (int)numericUpDownPort.Value;
-            _vpnService.KeepAliveIntervalSeconds = (int)numericUpDownCycle.Value * 60;
+            if (!_vpnService.IsKeepAliveActive)
+            {
+                _vpnService.Host = textBoxHost.Text.Trim();
+                _vpnService.Port = (int)numericUpDownPort.Value;
+                _vpnService.KeepAliveIntervalSeconds = (int)numericUpDownCycle.Value * 60;
+            }
 
             bool isRunning = _vpnService.IsEasyConnectRunning();
-            bool isConnected = await _vpnService.CheckConnectivityAsync();
+            var (isConnected, method) = await _vpnService.CheckConnectivityWithDetailAsync();
 
             // Log connectivity changes
             if (isConnected != _lastConnectivity)
             {
                 if (isConnected)
-                    _logService.Info("检测到内网已联通");
+                    _logService.Info($"检测到内网已联通 [{method}]");
                 else if (_lastConnectivity)
                     _logService.Info("检测到内网连接已断开");
                 
@@ -53,27 +57,30 @@ namespace EasyConnectKeeper
 
             if (_vpnService.IsKeepAliveActive)
             {
-                UpdateStatusLabel("保持连接活跃中", Color.BlueViolet);
+                UpdateStatusLabel($"保持连接活跃中 ({_vpnService.Host}:{_vpnService.Port})", Color.BlueViolet);
                 buttonKeepAlive.Enabled = false;
                 buttonStop.Enabled = true;
-            }
-            else if (isConnected)
-            {
-                UpdateStatusLabel("内网已联通", Color.Green);
-                buttonKeepAlive.Enabled = true;
-                buttonStop.Enabled = false;
-            }
-            else if (isRunning)
-            {
-                UpdateStatusLabel("EasyConnect 已启动，等待登录...", Color.Orange);
-                buttonKeepAlive.Enabled = false;
-                buttonStop.Enabled = false;
+                groupBoxConfig.Enabled = false;
             }
             else
             {
-                UpdateStatusLabel("EasyConnect 未运行", Color.Gray);
-                buttonKeepAlive.Enabled = false;
+                // 重点：始终允许用户手动点击开启保活，解除死锁限制
+                buttonKeepAlive.Enabled = true;
                 buttonStop.Enabled = false;
+                groupBoxConfig.Enabled = true;
+
+                if (isConnected)
+                {
+                    UpdateStatusLabel($"内网已联通 [{method}]", Color.Green);
+                }
+                else if (isRunning)
+                {
+                    UpdateStatusLabel("EasyConnect 运行中 (内网未联通)", Color.Orange);
+                }
+                else
+                {
+                    UpdateStatusLabel("未检测到 EasyConnect 进程", Color.Gray);
+                }
             }
         }
 
@@ -88,9 +95,15 @@ namespace EasyConnectKeeper
 
         private void AppendLog(string message)
         {
+            if (richTextBoxLog.IsDisposed) return;
+
             if (richTextBoxLog.InvokeRequired)
             {
-                richTextBoxLog.Invoke(new Action<string>(AppendLog), message);
+                try
+                {
+                    richTextBoxLog.Invoke(new Action<string>(AppendLog), message);
+                }
+                catch (ObjectDisposedException) { }
                 return;
             }
 
@@ -118,7 +131,7 @@ namespace EasyConnectKeeper
 
             try
             {
-                _logService.Info("尝试启动 EasyConnect...");
+                _logService.Info($"尝试启动 EasyConnect: {path}");
                 Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
             }
             catch (Exception ex)
@@ -132,8 +145,12 @@ namespace EasyConnectKeeper
         {
             try
             {
-                _logService.Info($"开启保持连接：{_vpnService.Host}:{_vpnService.Port}");
-                _vpnService.StartKeepAlive();
+                _vpnService.Host = textBoxHost.Text.Trim();
+                _vpnService.Port = (int)numericUpDownPort.Value;
+                _vpnService.KeepAliveIntervalSeconds = (int)numericUpDownCycle.Value * 60;
+
+                _logService.Info($"开启保持连接：{_vpnService.Host}:{_vpnService.Port}，心跳周期：{numericUpDownCycle.Value} 分钟");
+                await _vpnService.StartKeepAliveAsync();
                 await CheckStatus();
             }
             catch (Exception ex)
@@ -173,6 +190,7 @@ namespace EasyConnectKeeper
         {
             Show();
             WindowState = FormWindowState.Normal;
+            Activate();
             notifyIcon1.Visible = true;
         }
 
@@ -180,6 +198,12 @@ namespace EasyConnectKeeper
         {
             _logService.Info("正在退出程序...");
             _isClosing = true;
+            try
+            {
+                notifyIcon1.Visible = false;
+                notifyIcon1.Dispose();
+            }
+            catch { }
             Application.Exit();
         }
 
@@ -194,6 +218,12 @@ namespace EasyConnectKeeper
             }
             else
             {
+                try
+                {
+                    notifyIcon1.Visible = false;
+                    notifyIcon1.Dispose();
+                }
+                catch { }
                 _vpnService.Dispose();
             }
         }

@@ -145,7 +145,7 @@ namespace EasyConnectKeeper
             buttonRunEC.Name = "buttonRunEC";
             buttonRunEC.Size = new Size(180, 50);
             buttonRunEC.TabIndex = 2;
-            buttonRunEC.Text = "启动 EasyConnect";
+            buttonRunEC.Text = "启动客户端";
             buttonRunEC.UseVisualStyleBackColor = true;
             buttonRunEC.Click += buttonRunEC_Click;
             // 
